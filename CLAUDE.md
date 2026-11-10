@@ -24,8 +24,23 @@ There is no top-level stack to bring up. The entry points are the scripts below.
 | `./status.sh` | Table of Traefik + all services (status/health/version/uptime/hostname) |
 | `./test.sh` | Offline tests: `bash -n` + checks `common.sh` functions/constants (stubs docker/curl) |
 | `./lint.sh` | ShellCheck (`shellcheck -x -S warning`) over all scripts; needs `shellcheck` |
+| `./scripts/apply-service-template.sh [--check] [repo…]` | Stamp the canonical bun-API `Dockerfile`/`.dockerignore` into sibling service repos (`--check` = report drift, exit 1) |
 
 There is no build step. `--dry-run` exists only on `add.sh` and `upgrade.sh`.
+
+## Shared service Dockerfile template (source of truth)
+
+The plain Bun HTTP APIs share one Dockerfile (port-only difference) + one
+`.dockerignore`. The canonical copies live here, not hand-maintained per repo:
+`templates/Dockerfile.bun-api` (`__PORT__` placeholder; token via BuildKit
+secret, never baked), `templates/dockerignore`, and `services.manifest`
+(`repo port` list). `scripts/apply-service-template.sh` stamps them into the
+sibling repos (`../<repo>`); `--check` reports drift (wire into CI to prevent
+re-drift). Each repo keeps its own generated `Dockerfile` because CI
+(`johnqh/workflows`) builds each from its own context. Structurally-different
+services are excluded from the manifest and listed in its header comment
+(`screenwriter_api`, `svgr_api`, `haraka-plugin-wildduck`, the `*_indexer` pair,
+`sudojo_bot`).
 
 ## Layout
 

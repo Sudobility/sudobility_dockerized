@@ -496,6 +496,43 @@ service_pull() {
     service_compose "$service_name" pull
 }
 
+# Build a service image from source.
+#
+# The private @sudobility registry token (GH_PACKAGES_READ_TOKEN) is read from
+# the service's Doppler-fetched .env and handed to the build as a BuildKit
+# *secret* (compose `secrets.environment`), so it is mounted only for the
+# install step and never written into an image layer or `docker history`. The
+# service Dockerfile must consume it via `RUN --mount=type=secret,id=gh_packages_token`.
+service_build() {
+    local service_name="$1"
+    local service_dir
+    service_dir=$(get_service_dir "$service_name")
+
+    local docker_compose
+    docker_compose=$(get_docker_compose_cmd)
+
+    # Pull the token out of the Doppler-fetched env (never echo it).
+    local gh_token
+    gh_token=$(grep -E '^GH_PACKAGES_READ_TOKEN=' "${service_dir}/.env" 2>/dev/null \
+        | head -1 | cut -d= -f2- | sed -E 's/^["'"'"']//; s/["'"'"']$//')
+
+    if [ -z "$gh_token" ]; then
+        print_error "GH_PACKAGES_READ_TOKEN not found in this service's Doppler secrets"
+        print_info "Add GH_PACKAGES_READ_TOKEN (a GitHub token with read:packages) to the"
+        print_info "service's Doppler config so the build can install @sudobility/* deps."
+        return 1
+    fi
+
+    print_info "Building image (token injected as a BuildKit secret, never baked in)..."
+    # BuildKit is required for secret mounts. The token is exported only for
+    # this one command; compose reads it via the `gh_packages_token` secret's
+    # `environment` source.
+    (cd "$service_dir" && \
+        DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 \
+        GH_PACKAGES_READ_TOKEN="$gh_token" \
+        $docker_compose build)
+}
+
 # Start a service
 service_start() {
     local service_name="$1"

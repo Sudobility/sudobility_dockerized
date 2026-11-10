@@ -1,0 +1,29 @@
+# Bun HTTP API services that share the canonical single-stage Dockerfile
+# (templates/Dockerfile.bun-api) and .dockerignore (templates/dockerignore).
+#
+# `scripts/apply-service-template.sh` stamps the template into each sibling repo
+# below, substituting __PORT__ with the port here. One source of truth for the
+# otherwise-identical Dockerfiles.
+#
+# Intentionally NOT listed (justified structural differences — do not template):
+#   screenwriter_api        health at /api/v1/health + longer start-period (initDatabase at boot)
+#   svgr_api                vtracer stage + OCR/Paddle/tesseract/fonts runtime
+#   haraka-plugin-wildduck  node-alpine, clones Haraka, npm, tini
+#   heavymath_indexer       ponder indexer: alpine + ponder user + codegen (own pair)
+#   mail_box_indexer        ponder indexer: alpine + ponder user + codegen (own pair)
+#   sudojo_bot              3-stage build with a bun build step
+#
+# repo                  port
+shapeshyft_api          8020
+shaperouter_api         8020
+tapayoka_api            8025
+whisperly_api           8021
+mixr_api                6174
+mogulgame_api           8029
+raidr_agent_api         8038
+raidr_mcp_api           8040
+webgraph_api            8033
+music_api               8032
+raidr_api               8037
+sudojo_api              8010
+sudobility_api          8050

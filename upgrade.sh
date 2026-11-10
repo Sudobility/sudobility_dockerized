@@ -142,15 +142,27 @@ else
 fi
 
 # =============================================================================
-# Step 2: Pull and restart
+# Step 2: Refresh the image (rebuild from source, or pull a prebuilt image)
 # =============================================================================
-print_header "Step 2: Pulling Latest Image"
+INSTALL_METHOD=$(get_service_config "$SERVICE_NAME" "INSTALL_METHOD")
+[ -z "$INSTALL_METHOD" ] && INSTALL_METHOD="pull"  # back-compat: older services
 
-if [ "$DRY_RUN" = true ]; then
-    DOCKER_IMAGE=$(get_service_config "$SERVICE_NAME" "DOCKER_IMAGE")
-    print_info "Would pull latest image: ${DOCKER_IMAGE}"
+if [ "$INSTALL_METHOD" = "build" ]; then
+    print_header "Step 2: Rebuilding Image From Source"
+    if [ "$DRY_RUN" = true ]; then
+        BUILD_CONTEXT=$(get_service_config "$SERVICE_NAME" "BUILD_CONTEXT")
+        print_info "Would rebuild from: ${BUILD_CONTEXT} (GH_PACKAGES_READ_TOKEN from Doppler, as a BuildKit secret)"
+    else
+        service_build "$SERVICE_NAME" || { print_error "Build failed"; exit 1; }
+    fi
 else
-    service_pull "$SERVICE_NAME"
+    print_header "Step 2: Pulling Latest Image"
+    if [ "$DRY_RUN" = true ]; then
+        DOCKER_IMAGE=$(get_service_config "$SERVICE_NAME" "DOCKER_IMAGE")
+        print_info "Would pull latest image: ${DOCKER_IMAGE}"
+    else
+        service_pull "$SERVICE_NAME"
+    fi
 fi
 
 print_header "Step 3: Restarting Service"

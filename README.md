@@ -74,17 +74,19 @@ You will be prompted for:
 
 1. **Service name** — used as the container name (e.g. `shapeshyft_api`); must start with a letter, letters/digits/underscores only
 2. **Hostname** — public URL (e.g. `api.shapeshyft.ai`)
-3. **Docker image** — image to pull (e.g. `docker.io/username/image:latest`)
+3. **Install method** — either:
+   - **Pull** a prebuilt image (e.g. `docker.io/username/image:latest`), or
+   - **Build from source** — give a build context (path to the service checkout). Use this for services with private `@sudobility/*` dependencies: the build installs them using `GH_PACKAGES_READ_TOKEN` read from this service's Doppler secrets and injected as a **BuildKit secret**, so the token is **never baked into the image** (nothing in a layer or `docker history`).
 4. **Health check** — use the `/health` endpoint, or skip
 5. **Doppler service token** — validated against the Doppler API before use
 
 The script will:
 
 - Install and start Traefik if it is not already running
-- Fetch environment variables from Doppler (the secrets **must** include `PORT`)
+- Fetch environment variables from Doppler (the secrets **must** include `PORT`; for build-from-source services they must also include `GH_PACKAGES_READ_TOKEN`, a GitHub token with `read:packages`)
 - Generate `config-generated/services/<name>/` (compose file, `.env`, `.service.conf`)
 - Save the Doppler token for future upgrades
-- Pull the image and start the container with SSL enabled
+- **Build** the image from source (token injected as a BuildKit secret) or **pull** the prebuilt image, then start the container with SSL enabled
 
 Use `./add.sh --dry-run` to preview every action without creating anything, fetching
 secrets, or starting containers.
@@ -94,9 +96,30 @@ secrets, or starting containers.
 | Script | Purpose |
 |--------|---------|
 | `./add.sh [--dry-run]` | Interactively add a new service (installs Traefik if needed) |
-| `./upgrade.sh [--dry-run]` | Refresh secrets from Doppler, pull the latest image, restart a service |
+| `./upgrade.sh [--dry-run]` | Refresh secrets from Doppler, rebuild (build-from-source services) or pull the latest image, restart a service |
 | `./remove.sh` | Remove a service (double confirmation: y/n + type the service name) |
 | `./status.sh` | Show Traefik + all services with status, health, version, uptime, hostname |
+| `./scripts/apply-service-template.sh [--check] [repo…]` | Stamp the canonical bun-API `Dockerfile`/`.dockerignore` into the sibling service repos (`--check` reports drift only) |
+
+## Shared service Dockerfile template
+
+The plain Bun HTTP-API services share a byte-identical `Dockerfile` (differing
+only by port) and `.dockerignore`. Rather than hand-maintain ~13 drifting
+copies, the canonical versions live here:
+
+- `templates/Dockerfile.bun-api` — single-stage `oven/bun:latest`, non-root
+  `appuser`, `dumb-init`, healthcheck, and the private-registry token injected as
+  a **BuildKit secret** (never baked). `__PORT__` is substituted per service.
+- `templates/dockerignore` — the canonical `.dockerignore`.
+- `services.manifest` — the `repo port` list the template is stamped into.
+
+Run `./scripts/apply-service-template.sh` to regenerate all listed repos from the
+template, or `--check` (e.g. in CI) to fail on drift. Each repo still keeps its
+own `Dockerfile` on disk because the shared CI (`johnqh/workflows`) builds each
+repo from its own context — the script just keeps those files generated from one
+source instead of edited by hand. Services with justified structural differences
+(`screenwriter_api`, `svgr_api`, `haraka-plugin-wildduck`, the `*_indexer` pair,
+`sudojo_bot`) are intentionally excluded from the manifest.
 
 ### Example status output
 
